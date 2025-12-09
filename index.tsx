@@ -353,7 +353,8 @@ const App = () => {
     background: "rgba(0,0,0,0.6)",
     backdropFilter: "blur(5px)",
     display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center",
-    zIndex: 10
+    zIndex: 10,
+    pointerEvents: "auto"
   };
   
   const buttonStyle: React.CSSProperties = {
@@ -459,27 +460,53 @@ const App = () => {
 
       {(gameState === "LEVEL_COMPLETE" || gameState === "VICTORY") && (
         <div style={overlayStyle}>
-            <h1 style={{ fontSize: "4rem", color: "#FFE66D", textShadow: "0 4px 10px black" }}>
+            <h1 style={{ fontSize: "4rem", color: "#FFE66D", textShadow: "0 4px 10px black", pointerEvents: "none" }}>
                 {gameState === "VICTORY" ? "VICTORY!" : "LEVEL COMPLETE"}
             </h1>
-            <div style={{ fontSize: "2rem", color: "white", marginBottom: "10px" }}>Score: {score}</div>
+            <div style={{ fontSize: "2rem", color: "white", marginBottom: "10px", pointerEvents: "none" }}>Score: {score}</div>
             {gameState === "VICTORY" && (
-                <div style={{ fontSize: "1.5rem", color: score > highScore ? "#FFD700" : "#4ECDC4", marginBottom: "20px", fontWeight: "bold" }}>
+                <div style={{ fontSize: "1.5rem", color: score > highScore ? "#FFD700" : "#4ECDC4", marginBottom: "20px", fontWeight: "bold", pointerEvents: "none" }}>
                     {score > highScore ? "🎉 NEW HIGH SCORE! 🎉" : `High Score: ${highScore}`}
                 </div>
             )}
             
-            <div style={{ margin: "20px 0", maxHeight: "400px", width: "100%", display: "flex", justifyContent: "center" }}>
-                <WorldMap currentLevel={level} completed={true} />
+            <div style={{ margin: "20px 0", maxHeight: "400px", width: "100%", display: "flex", justifyContent: "center", pointerEvents: "none", flexShrink: 0 }}>
+                <div style={{ pointerEvents: "auto" }}>
+                    <WorldMap currentLevel={level} completed={true} />
+                </div>
             </div>
             
-            <div style={{ marginTop: "30px", display: "flex", gap: "20px" }}>
-                <button onClick={() => setGameState("MENU")} style={{...buttonStyle, background: "#556270", fontSize: "18px"}}>MENU</button>
+            <div style={{ marginTop: "20px", display: "flex", gap: "20px", position: "relative", zIndex: 100, pointerEvents: "auto", flexShrink: 0 }}>
+                <button 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setGameState("MENU");
+                    }} 
+                    style={{...buttonStyle, background: "#556270", fontSize: "18px", position: "relative", zIndex: 101}}
+                >
+                    MENU
+                </button>
                 
                 {gameState === "VICTORY" ? (
-                    <button onClick={() => startGame(0)} style={buttonStyle}>PLAY AGAIN</button>
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            startGame(0);
+                        }} 
+                        style={{...buttonStyle, position: "relative", zIndex: 101}}
+                    >
+                        PLAY AGAIN
+                    </button>
                 ) : (
-                    <button onClick={nextLevel} style={buttonStyle}>NEXT LEVEL</button>
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            nextLevel();
+                        }} 
+                        style={{...buttonStyle, position: "relative", zIndex: 101}}
+                    >
+                        NEXT LEVEL
+                    </button>
                 )}
             </div>
         </div>
