@@ -51,7 +51,6 @@ ehthumbs.db
 Desktop.ini
 
 # Docker
-.dockerignore
 docker-compose.override.yml
 
 # Testing
