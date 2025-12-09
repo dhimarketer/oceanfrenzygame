@@ -313,6 +313,26 @@ pull_image() {
     print_info "Image pulled successfully!"
 }
 
+# Function to build image from source
+build_image() {
+    perform_system_checks skip_port skip_network
+    
+    if [ ! -f "Dockerfile" ]; then
+        print_error "Dockerfile not found in current directory!"
+        print_error "Please run this command from the project root directory."
+        exit 1
+    fi
+    
+    print_info "Building Docker image from source: ${FULL_IMAGE_NAME}:latest..."
+    if docker build -t "${FULL_IMAGE_NAME}:latest" .; then
+        print_info "Build completed successfully!"
+        print_info "You can now start the container with: ./deploy.sh start"
+    else
+        print_error "Build failed!"
+        exit 1
+    fi
+}
+
 # Function to remove container
 remove_container() {
     perform_system_checks skip_port skip_network
@@ -337,18 +357,20 @@ show_usage() {
     echo "Usage: $0 [command]"
     echo ""
     echo "Commands:"
-    echo "  start     - Start the game container"
+    echo "  start     - Start the game container (pulls image if not found)"
     echo "  stop      - Stop the game container"
     echo "  restart   - Restart the game container"
     echo "  status    - Show container status"
     echo "  logs      - Show container logs (follow mode)"
     echo "  pull      - Pull latest image from Docker Hub"
+    echo "  build     - Build image from local source code"
     echo "  remove    - Remove the container"
     echo ""
     echo "Examples:"
-    echo "  $0 start"
-    echo "  $0 restart"
-    echo "  $0 status"
+    echo "  $0 start      # Start (will pull from Docker Hub if needed)"
+    echo "  $0 build      # Build from source, then use 'start' to run"
+    echo "  $0 restart    # Restart the game"
+    echo "  $0 status     # Check if game is running"
 }
 
 # Main script logic
@@ -370,6 +392,9 @@ case "${1:-}" in
         ;;
     pull)
         pull_image
+        ;;
+    build)
+        build_image
         ;;
     remove)
         remove_container
