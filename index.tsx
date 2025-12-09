@@ -19,17 +19,29 @@ const App = () => {
   const [gameState, setGameState] = useState<"LOADING" | "MENU" | "SETTINGS" | "PLAYING" | "PAUSED" | "LEVEL_COMPLETE" | "GAMEOVER" | "VICTORY">("LOADING");
   const [level, setLevel] = useState(0); 
   const [score, setScore] = useState(0);
+  const [highScore, setHighScore] = useState(() => {
+    // Load high score from localStorage on mount
+    try {
+      const saved = localStorage.getItem('oceanFrenzy_highScore');
+      return saved ? parseInt(saved, 10) : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [frenzyActive, setFrenzyActive] = useState(false);
   const [growthProgress, setGrowthProgress] = useState(0);
   const [combo, setCombo] = useState(0);
   const [missingFiles, setMissingFiles] = useState<string[]>([]);
   // Used to force re-render when assets change
-  const [assetVersion, setAssetVersion] = useState(0); 
+  const [assetVersion, setAssetVersion] = useState(0);
+  
+  // Track score at level start to preserve on retry
+  const scoreAtLevelStartRef = useRef(0); 
 
   // Refs for Game Loop (Mutable state without re-renders)
   const playerRef = useRef<Entity>({
     id: 0, x: 0, y: 0, radius: 15, vx: 0, vy: 0, 
-    color: "#FF6B6B", speed: 5, tier: 0, type: "normal", stunTimer: 0, hasShield: false
+    color: "#FF6B6B", speed: 5, tier: 0, type: "normal", stunTimer: 0, hasShield: false, speedBoostTimer: 0
   });
   
   const enemiesRef = useRef<Entity[]>([]);
@@ -39,6 +51,7 @@ const App = () => {
   
   const mouseRef = useRef({ x: 0, y: 0 });
   const scoreRef = useRef(0);
+  const levelRef = useRef(0);
   const keysPressed = useRef(new Set<string>());
   const inputMode = useRef<"mouse" | "keyboard">("mouse");
   
@@ -46,23 +59,26 @@ const App = () => {
   const frenzyMeterRef = useRef(0);
   const lastEatTimeRef = useRef(0);
   const comboCountRef = useRef(0);
+  const freezeTimerRef = useRef(0);
 
   const gameStateRef = useRef(gameState);
 
   useEffect(() => {
       gameStateRef.current = gameState;
   }, [gameState]);
+  
+  useEffect(() => {
+      levelRef.current = level;
+  }, [level]);
 
   // --- Init ---
   useEffect(() => {
-      const loadAll = async () => {
-          // Load BOTH graphics and audio assets from folders
-          await Promise.all([loadGraphicsAssets(), loadAudioAssets()]); 
-          // Check for any missing files to warn the user
-          setMissingFiles([...getMissingAssets(), ...getMissingAudioAssets()]);
-          setGameState("MENU");
-      };
-      loadAll();
+    const loadAll = async () => {
+        await Promise.all([loadGraphicsAssets(), loadAudioAssets()]); 
+        setMissingFiles([...getMissingAssets(), ...getMissingAudioAssets()]);
+        setGameState("MENU");
+    };
+    loadAll();
   }, []);
 
   // --- Input Setup ---
@@ -137,22 +153,35 @@ const App = () => {
     };
   }, []);
 
-  const startGame = (startLevel = 0) => {
+  const startGame = (startLevel = 0, preserveScore = false) => {
     initAudio();
     startMusic();
     setGameState("PLAYING");
     setLevel(startLevel);
     
     if (startLevel === 0) {
+        // New game - reset score
         setScore(0);
         scoreRef.current = 0;
+        scoreAtLevelStartRef.current = 0;
         playerRef.current.radius = 15;
     } else {
         const prevGoal = LEVELS[startLevel - 1].goalSize;
         playerRef.current.radius = prevGoal;
-        const starterScore = startLevel * 1000;
-        setScore(starterScore);
-        scoreRef.current = starterScore;
+        
+        if (preserveScore) {
+            // Retrying a level - keep current score
+            // scoreRef.current and score state already have the current value
+            scoreAtLevelStartRef.current = scoreRef.current;
+        } else {
+            // Starting next level - use starter score or current score, whichever is higher
+            const starterScore = startLevel * 1000;
+            const currentScore = scoreRef.current;
+            const newScore = Math.max(starterScore, currentScore);
+            setScore(newScore);
+            scoreRef.current = newScore;
+            scoreAtLevelStartRef.current = newScore;
+        }
     }
     
     // Reset Entity Positions
@@ -162,6 +191,7 @@ const App = () => {
     playerRef.current.vy = 0;
     playerRef.current.stunTimer = 0;
     playerRef.current.hasShield = false;
+    playerRef.current.speedBoostTimer = 0;
     
     enemiesRef.current = [];
     particlesRef.current = [];
@@ -171,18 +201,50 @@ const App = () => {
     dashCooldownRef.current = 0;
     frenzyMeterRef.current = 0;
     comboCountRef.current = 0;
+    freezeTimerRef.current = 0;
     
     setFrenzyActive(false);
     setCombo(0);
   };
 
   const nextLevel = () => {
-      if (level < LEVELS.length - 1) {
-          startGame(level + 1);
+      // Use ref to ensure we always have the current level value
+      const currentLevel = levelRef.current;
+      
+      if (currentLevel < LEVELS.length - 1) {
+          const nextLevelIndex = currentLevel + 1;
+          // startGame will handle setting the level and game state
+          startGame(nextLevelIndex, false);
       } else {
+          // Last level completed - show victory
+          // Update high score on victory
+          if (scoreRef.current > highScore) {
+              const newHighScore = scoreRef.current;
+              setHighScore(newHighScore);
+              try {
+                  localStorage.setItem('oceanFrenzy_highScore', newHighScore.toString());
+              } catch (e) {
+                  console.warn('Failed to save high score:', e);
+              }
+          }
           setGameState("VICTORY");
       }
   };
+  
+  // Update high score when game ends
+  useEffect(() => {
+      if (gameState === "GAMEOVER" || gameState === "VICTORY") {
+          if (scoreRef.current > highScore) {
+              const newHighScore = scoreRef.current;
+              setHighScore(newHighScore);
+              try {
+                  localStorage.setItem('oceanFrenzy_highScore', newHighScore.toString());
+              } catch (e) {
+                  console.warn('Failed to save high score:', e);
+              }
+          }
+      }
+  }, [gameState, highScore]);
 
   // --- Logic Loop ---
   const tick = () => {
@@ -204,7 +266,8 @@ const App = () => {
                 frenzyMeter: frenzyMeterRef,
                 comboCount: comboCountRef,
                 lastEatTime: lastEatTimeRef,
-                score: scoreRef
+                score: scoreRef,
+                freezeTimer: freezeTimerRef
             },
             level,
             setScore,
@@ -314,6 +377,7 @@ const App = () => {
             <div style={{ color: "white", textShadow: "0 2px 4px black" }}>
                 <div style={{ fontSize: "24px", fontWeight: "900" }}>SCORE: {score}</div>
                 {combo > 1 && <div style={{ color: "#76ff03", fontWeight: "bold" }}>COMBO x{combo}!</div>}
+                <div style={{fontSize: "16px", color: "#aaa"}}>Level {level + 1}</div>
             </div>
             
             <div style={{ flex: 1, maxWidth: "400px", margin: "0 20px" }}>
@@ -344,32 +408,24 @@ const App = () => {
       {gameState === "MENU" && (
         <div style={overlayStyle}>
             <h1 style={{ fontSize: "5rem", color: "#4ECDC4", textShadow: "0 4px 10px black", margin: 0 }}>OCEAN FRENZY</h1>
-            <h2 style={{ color: "#fff", fontWeight: "300", marginBottom: "40px" }}>EVOLVE OR DIE</h2>
+            <h2 style={{ color: "#fff", fontWeight: "300", marginBottom: "10px" }}>EVOLVE OR DIE</h2>
+            {highScore > 0 && (
+                <div style={{ fontSize: "1.2rem", color: "#FFD700", marginBottom: "40px", fontWeight: "bold", textShadow: "0 2px 4px black" }}>
+                    High Score: {highScore}
+                </div>
+            )}
             
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center", maxWidth: "800px" }}>
-                {LEVELS.map((lvl, idx) => (
-                    <button 
-                        key={idx}
-                        onClick={() => startGame(idx)} 
-                        style={{
-                            ...buttonStyle,
-                            fontSize: idx === 0 ? "24px" : "18px",
-                            padding: idx === 0 ? "20px 50px" : "15px 30px",
-                            background: idx === 0 ? "linear-gradient(to bottom, #FF6B6B, #EE5253)" : "rgba(255,255,255,0.1)",
-                            border: idx === 0 ? "4px solid white" : "2px solid rgba(255,255,255,0.5)"
-                        }}
-                    >
-                        {idx === 0 ? "PLAY GAME" : `${lvl.name}`}
-                    </button>
-                ))}
-            </div>
-            
-            <div style={{ marginTop: "30px" }}>
-                <button onClick={() => setGameState("SETTINGS")} style={{...buttonStyle, background: "#556270", fontSize: "16px", padding: "10px 30px"}}>SETTINGS</button>
-            </div>
-            
-            <div style={{ marginTop: "40px", transform: "scale(0.8)" }}>
-                <WorldMap currentLevel={0} completed={false} />
+            <div style={{ display: "flex", gap: "20px", alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" }}>
+                <WorldMap currentLevel={level} completed={false} onLevelSelect={startGame} />
+                
+                <div style={{display: "flex", flexDirection: "column", gap: "20px", justifyContent: "center", marginTop: "40px"}}>
+                     <button onClick={() => startGame(0)} style={{...buttonStyle, fontSize: "24px", padding: "20px 50px"}}>
+                        PLAY NOW
+                     </button>
+                     <button onClick={() => setGameState("SETTINGS")} style={{...buttonStyle, background: "#556270", fontSize: "16px", padding: "15px 30px"}}>
+                        SETTINGS
+                     </button>
+                </div>
             </div>
         </div>
       )}
@@ -406,9 +462,16 @@ const App = () => {
             <h1 style={{ fontSize: "4rem", color: "#FFE66D", textShadow: "0 4px 10px black" }}>
                 {gameState === "VICTORY" ? "VICTORY!" : "LEVEL COMPLETE"}
             </h1>
-            <div style={{ fontSize: "2rem", color: "white", marginBottom: "20px" }}>Score: {score}</div>
+            <div style={{ fontSize: "2rem", color: "white", marginBottom: "10px" }}>Score: {score}</div>
+            {gameState === "VICTORY" && (
+                <div style={{ fontSize: "1.5rem", color: score > highScore ? "#FFD700" : "#4ECDC4", marginBottom: "20px", fontWeight: "bold" }}>
+                    {score > highScore ? "🎉 NEW HIGH SCORE! 🎉" : `High Score: ${highScore}`}
+                </div>
+            )}
             
-            <WorldMap currentLevel={level} completed={true} />
+            <div style={{ margin: "20px 0", maxHeight: "400px", width: "100%", display: "flex", justifyContent: "center" }}>
+                <WorldMap currentLevel={level} completed={true} />
+            </div>
             
             <div style={{ marginTop: "30px", display: "flex", gap: "20px" }}>
                 <button onClick={() => setGameState("MENU")} style={{...buttonStyle, background: "#556270", fontSize: "18px"}}>MENU</button>
@@ -425,10 +488,13 @@ const App = () => {
       {gameState === "GAMEOVER" && (
         <div style={overlayStyle}>
             <h1 style={{ fontSize: "5rem", color: "#FF6B6B", textShadow: "0 4px 10px black" }}>GAME OVER</h1>
-            <div style={{ fontSize: "2rem", color: "white", marginBottom: "30px" }}>Final Score: {score}</div>
+            <div style={{ fontSize: "2rem", color: "white", marginBottom: "10px" }}>Final Score: {score}</div>
+            <div style={{ fontSize: "1.5rem", color: score > highScore ? "#FFD700" : "#4ECDC4", marginBottom: "30px", fontWeight: "bold" }}>
+                {score > highScore ? "🎉 NEW HIGH SCORE! 🎉" : `High Score: ${highScore}`}
+            </div>
             <div style={{ display: "flex", gap: "20px" }}>
                 <button onClick={() => setGameState("MENU")} style={{...buttonStyle, background: "#556270", fontSize: "18px"}}>MENU</button>
-                <button onClick={() => startGame(level)} style={buttonStyle}>TRY AGAIN</button>
+                <button onClick={() => startGame(level, true)} style={buttonStyle}>TRY AGAIN</button>
             </div>
         </div>
       )}

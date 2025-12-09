@@ -58,59 +58,61 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
             display: "flex", justifyContent: "center", alignItems: "center", zIndex: 50
         }}>
             <div style={{
-                width: "90%", maxWidth: "1000px", height: "85%",
-                background: "#222", borderRadius: "20px",
-                border: "2px solid #4ECDC4",
-                boxShadow: "0 0 50px rgba(78, 205, 196, 0.2)",
+                width: "95vw", height: "90vh",
+                background: "#1a1a1a", borderRadius: "15px",
+                border: "1px solid #4ECDC4",
+                boxShadow: "0 0 40px rgba(0,0,0,0.5)",
                 display: "flex", flexDirection: "column", overflow: "hidden"
             }}>
                 {/* Header */}
-                <div style={{ padding: "20px 30px", background: "#333", borderBottom: "1px solid #444", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ padding: "15px 20px", background: "#252525", borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
                     <div>
-                        <h1 style={{ margin: 0, color: "#4ECDC4", fontSize: "2rem", textShadow: "0 2px 4px black" }}>ASSET MANAGER</h1>
-                        <p style={{ margin: "5px 0 0 0", color: "#aaa", fontSize: "0.9rem" }}>Customize your game experience</p>
+                        <h1 style={{ margin: 0, color: "#4ECDC4", fontSize: "1.5rem", textShadow: "0 2px 4px black", letterSpacing: "1px" }}>ASSET MANAGER</h1>
+                        <p style={{ margin: "2px 0 0 0", color: "#888", fontSize: "0.8rem" }}>Customize your ocean</p>
                     </div>
                     <button 
                         onClick={onClose}
-                        style={{ background: "#FF6B6B", color: "white", border: "none", borderRadius: "8px", padding: "10px 20px", fontWeight: "bold", cursor: "pointer", fontSize: "1rem" }}
+                        style={{ background: "#FF6B6B", color: "white", border: "none", borderRadius: "6px", padding: "8px 20px", fontWeight: "bold", cursor: "pointer", fontSize: "1rem", boxShadow: "0 2px 5px rgba(0,0,0,0.3)" }}
                     >
                         CLOSE
                     </button>
                 </div>
 
                 {/* Content */}
-                <div style={{ flex: 1, overflowY: "auto", padding: "30px" }}>
+                <div style={{ flex: 1, overflowY: "auto", padding: "20px", scrollbarWidth: "thin" }}>
                     
                     {/* Folder Scanner Section */}
-                    <div style={{ background: "rgba(78, 205, 196, 0.1)", border: "1px dashed #4ECDC4", borderRadius: "15px", padding: "20px", marginBottom: "30px", textAlign: "center" }}>
-                        <h3 style={{ marginTop: 0, color: "white" }}>📁 Batch Import from Folder</h3>
-                        <p style={{ color: "#ccc", fontSize: "0.9rem", maxWidth: "600px", margin: "0 auto 20px auto" }}>
-                            Select a folder containing your PNG images. We will try to match them by name (e.g. "player.png"). 
-                            If names don't match, we will automatically assign unused images to empty slots.
-                        </p>
+                    <div style={{ background: "rgba(78, 205, 196, 0.05)", border: "1px dashed #4ECDC4", borderRadius: "10px", padding: "15px", marginBottom: "20px", textAlign: "center" }}>
+                        <h3 style={{ marginTop: 0, color: "#fff", fontSize: "1.1rem" }}>Batch Import</h3>
                         
-                        <label style={{ 
-                            display: "inline-block", background: "#4ECDC4", color: "#000", 
-                            padding: "12px 30px", borderRadius: "50px", fontSize: "1.1rem", 
-                            fontWeight: "bold", cursor: "pointer", transition: "transform 0.1s" 
-                        }}>
-                            SELECT ASSETS FOLDER
-                            <input 
-                                type="file" 
-                                // @ts-ignore
-                                webkitdirectory=""
-                                directory=""
-                                multiple
-                                style={{ display: "none" }} 
-                                onClick={(e) => (e.target as HTMLInputElement).value = ''}
-                                onChange={(e) => handleFolderSelect(e.target.files)}
-                            />
-                        </label>
+                        <div style={{display: "flex", alignItems: "center", justifyContent: "center", gap: "20px", flexWrap: "wrap"}}>
+                            <p style={{ color: "#aaa", fontSize: "0.85rem", margin: 0, maxWidth: "500px", textAlign: "left" }}>
+                                Select a folder containing your assets. The system will auto-match by name (e.g. "player.png", "bg1.jpg") or auto-fill empty slots.
+                            </p>
+                            
+                            <label style={{ 
+                                display: "inline-block", background: "#4ECDC4", color: "#000", 
+                                padding: "10px 25px", borderRadius: "30px", fontSize: "0.9rem", 
+                                fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap"
+                            }}>
+                                SELECT FOLDER
+                                <input 
+                                    type="file" 
+                                    // @ts-ignore
+                                    webkitdirectory=""
+                                    directory=""
+                                    multiple
+                                    style={{ display: "none" }} 
+                                    onClick={(e) => (e.target as HTMLInputElement).value = ''}
+                                    onChange={(e) => handleFolderSelect(e.target.files)}
+                                />
+                            </label>
+                        </div>
 
                         {/* Scan Feedback */}
                         {scanStatus.msg && (
                             <div style={{ 
-                                marginTop: "20px", padding: "10px", borderRadius: "8px", 
+                                marginTop: "10px", padding: "8px", borderRadius: "6px", fontSize: "0.9rem",
                                 background: scanStatus.type === 'error' ? 'rgba(255,0,0,0.2)' : 'rgba(0,255,0,0.1)',
                                 color: scanStatus.type === 'error' ? '#ff8888' : '#aaffaa',
                                 border: `1px solid ${scanStatus.type === 'error' ? 'red' : 'green'}`
@@ -120,7 +122,7 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
                         )}
                         
                         {lastScanResult && lastScanResult.messages.length > 0 && (
-                            <div style={{ marginTop: "10px", textAlign: "left", maxHeight: "150px", overflowY: "auto", background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "5px", fontSize: "0.8rem", color: "#aaa" }}>
+                            <div style={{ marginTop: "10px", textAlign: "left", maxHeight: "100px", overflowY: "auto", background: "rgba(0,0,0,0.3)", padding: "5px 10px", borderRadius: "5px", fontSize: "0.75rem", color: "#aaa" }}>
                                 {lastScanResult.messages.map((m, i) => <div key={i}>{m}</div>)}
                             </div>
                         )}
@@ -128,16 +130,16 @@ export const SettingsMenu: React.FC<SettingsMenuProps> = ({
 
                     {/* Missing Assets Warning */}
                     {missingFiles.length > 0 && (
-                        <div style={{ marginBottom: "30px" }}>
-                            <h3 style={{ color: "#FF6B6B" }}>⚠️ Missing Assets</h3>
+                        <div style={{ marginBottom: "20px" }}>
+                            <h3 style={{ color: "#FF6B6B", fontSize: "1rem", margin: "0 0 10px 0" }}>⚠️ Missing Assets</h3>
                             <AssetStatusTable missingFiles={missingFiles} />
                         </div>
                     )}
 
                     {/* Asset Grid */}
-                    <h3 style={{ color: "white", borderBottom: "1px solid #444", paddingBottom: "10px" }}>Individual Assets</h3>
+                    <h3 style={{ color: "white", borderBottom: "1px solid #444", paddingBottom: "5px", fontSize: "1rem", margin: "0 0 15px 0" }}>Individual Assets</h3>
                     <div style={{ 
-                        display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "20px", marginTop: "20px" 
+                        display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "15px", paddingBottom: "20px" 
                     }}>
                         {Object.keys(ASSET_LABELS).map((key) => (
                             <AssetCard 

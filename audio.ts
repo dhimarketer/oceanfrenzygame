@@ -1,4 +1,6 @@
 
+
+
 import { ASSETS } from "./gameConfig";
 
 let audioCtx: AudioContext | null = null;
@@ -86,7 +88,7 @@ export const startMusic = () => {
     bgmSource.start();
 };
 
-export const playSound = (type: "eat" | "die" | "win" | "levelup" | "dash" | "frenzy" | "combo" | "zap" | "explode" | "shield" | "suction") => {
+export const playSound = (type: "eat" | "die" | "win" | "levelup" | "dash" | "frenzy" | "combo" | "zap" | "explode" | "shield" | "suction" | "powerup" | "freeze") => {
   if (!audioCtx) return;
 
   const buffer = audioBuffers[type];
@@ -258,6 +260,30 @@ export const playSound = (type: "eat" | "die" | "win" | "levelup" | "dash" | "fr
         gainNode.gain.setValueAtTime(0.1, now);
         gainNode.gain.linearRampToValueAtTime(0, now + 0.3);
         sNoise.start(now);
+        break;
+    
+    case "powerup":
+        const oscPower = audioCtx.createOscillator();
+        oscPower.connect(gainNode);
+        oscPower.type = "triangle";
+        oscPower.frequency.setValueAtTime(440, now);
+        oscPower.frequency.linearRampToValueAtTime(880, now + 0.2);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+        oscPower.start(now);
+        oscPower.stop(now + 0.2);
+        break;
+
+    case "freeze":
+        const oscFreeze = audioCtx.createOscillator();
+        oscFreeze.connect(gainNode);
+        oscFreeze.type = "sine";
+        oscFreeze.frequency.setValueAtTime(1000, now);
+        oscFreeze.frequency.linearRampToValueAtTime(100, now + 0.5);
+        gainNode.gain.setValueAtTime(0.2, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 0.5);
+        oscFreeze.start(now);
+        oscFreeze.stop(now + 0.5);
         break;
   }
 };

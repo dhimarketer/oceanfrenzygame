@@ -1,4 +1,4 @@
-
+import React from "react";
 import { LEVELS, SCORING, getEnemyProperties } from "./gameConfig";
 import { Entity, Particle, FloatingText } from "./types";
 import { drawBackground, drawFish, drawBubble, drawParticle, drawFloatingText } from "./graphics";
@@ -23,6 +23,7 @@ interface UpdateParams {
         comboCount: React.MutableRefObject<number>;
         lastEatTime: React.MutableRefObject<number>;
         score: React.MutableRefObject<number>;
+        freezeTimer: React.MutableRefObject<number>; 
     };
     level: number;
     setScore: (s: number) => void;
@@ -40,11 +41,15 @@ export const updateGame = ({
     const height = canvas.height;
     const levelConfig = LEVELS[level];
     const now = performance.now();
-    const { dashCooldown, frenzyMeter, comboCount, lastEatTime, score } = refs;
+    const { dashCooldown, frenzyMeter, comboCount, lastEatTime, score, freezeTimer } = refs;
 
     // -- Cooldowns --
     if (dashCooldown.current > 0) dashCooldown.current--;
     if (player.stunTimer && player.stunTimer > 0) player.stunTimer--;
+    if (player.speedBoostTimer && player.speedBoostTimer > 0) player.speedBoostTimer--;
+    if (freezeTimer.current && freezeTimer.current > 0) freezeTimer.current--;
+
+    const isFrozen = freezeTimer.current > 0;
 
     // -- Frenzy Logic --
     if (frenzyMeter.current > 0) frenzyMeter.current -= 0.1;
@@ -60,29 +65,26 @@ export const updateGame = ({
     // -- Player Movement --
     let baseSpeed = player.speed;
     if (isFrenzy) baseSpeed *= 1.3;
+    if (player.speedBoostTimer && player.speedBoostTimer > 0) baseSpeed *= 1.8;
     
     const isStunned = (player.stunTimer || 0) > 0;
 
     // -- Suction / Inhale Ability --
-    // Right Click or Shift Key
     const isInhaling = !isStunned && (input.keys.has("contextmenu") || input.keys.has("shift"));
     
     if (isInhaling) {
-         // Slow down player while inhaling
          baseSpeed *= 0.5;
-         
-         // Only play sound periodically
          if (Math.random() < 0.1) playSound("suction");
 
-         // Physics: Pull edible fish closer
          enemies.forEach(e => {
-             // Only affect things we can eat (smaller radius)
-             if (e.type !== "mine" && e.type !== "jelly" && e.radius < player.radius * 0.9) {
+             // Pull items and edible fish
+             if (!e.type.includes("item") && (e.type === "mine" || e.type === "jelly" || e.radius >= player.radius * 0.9)) {
+                 // Too big to inhale
+             } else {
                  const dx = player.x - e.x;
                  const dy = player.y - e.y;
                  const dist = Math.sqrt(dx*dx + dy*dy);
-                 if (dist < 300) { // Range
-                     // Visual: Stream lines
+                 if (dist < 300) { 
                      if (Math.random() < 0.2) {
                         particles.push({
                             x: e.x, y: e.y,
@@ -90,7 +92,6 @@ export const updateGame = ({
                             life: 0.5, color: "rgba(255, 255, 255, 0.3)", size: 1
                         });
                      }
-                     // Pull force
                      e.x += dx * 0.02;
                      e.y += dy * 0.02;
                  }
@@ -129,12 +130,6 @@ export const updateGame = ({
         }
 
         // Dash Logic
-        const currentSpeed = Math.sqrt(player.vx*player.vx + player.vy*player.vy);
-        if (dashCooldown.current < 50 && currentSpeed > baseSpeed * 1.5) {
-            player.vx *= 0.9; 
-            player.vy *= 0.9;
-        }
-
         if (input.keys.has("click") || input.keys.has(" ")) {
              if (dashCooldown.current <= 0) {
                  dashCooldown.current = 60;
@@ -157,7 +152,6 @@ export const updateGame = ({
              }
         }
     } else {
-        // Stunned movement: Drift loosely
         player.vx *= 0.95;
         player.vy *= 0.95;
     }
@@ -179,7 +173,8 @@ export const updateGame = ({
     }
 
     // -- Spawning --
-    if (Math.random() < levelConfig.spawnRate && enemies.length < 30) {
+    // Spawn less if frozen to prevent stacking
+    if (!isFrozen && Math.random() < levelConfig.spawnRate && enemies.length < 40) {
         enemies.push(spawnEnemy(width, height, player.tier, level));
     }
     
@@ -202,25 +197,47 @@ export const updateGame = ({
     for(let i=enemies.length-1; i>=0; i--) {
         const e = enemies[i];
         
-        // Entity Movement
-        if (e.type === "jelly") {
-            e.y += e.vy;
-            if (e.y < -50 || e.y > height + 50) {
-                 enemies.splice(i, 1);
-                 continue;
+        // Entity Movement (Only move if NOT frozen, or if it's an item/jelly drifting)
+        // Items and Jellies drift even during freeze for visual flair
+        const canMove = !isFrozen || e.type.includes("item"); 
+
+        if (canMove) {
+            // Chaser Logic
+            if (e.isChaser && e.radius > player.radius && !player.hasShield) {
+                const dx = player.x - e.x;
+                const dy = player.y - e.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                // Accelerate towards player slightly
+                if (dist < 500) {
+                    e.vx += (dx/dist) * 0.1;
+                    e.vy += (dy/dist) * 0.1;
+                    // Cap speed
+                    const s = Math.sqrt(e.vx*e.vx + e.vy*e.vy);
+                    if (s > e.speed * 1.5) {
+                        e.vx = (e.vx/s) * e.speed * 1.5;
+                        e.vy = (e.vy/s) * e.speed * 1.5;
+                    }
+                }
             }
-        } else if (e.type === "shield_item") {
-            e.y += e.vy;
-            if (e.y > height + 50) {
-                enemies.splice(i, 1);
-                continue;
-            }
-        } else {
-            // Horizontal swim
-            e.x += e.vx; e.y += e.vy;
-            if((e.vx > 0 && e.x > width + 200) || (e.vx < 0 && e.x < -200)) {
-                enemies.splice(i, 1);
-                continue;
+
+            if (e.type === "jelly") {
+                e.y += e.vy;
+                if (e.y < -50 || e.y > height + 50) {
+                     enemies.splice(i, 1);
+                     continue;
+                }
+            } else if (e.type.includes("item")) {
+                e.y += e.vy;
+                if (e.y > height + 50) {
+                    enemies.splice(i, 1);
+                    continue;
+                }
+            } else {
+                e.x += e.vx; e.y += e.vy;
+                if((e.vx > 0 && e.x > width + 200) || (e.vx < 0 && e.x < -200)) {
+                    enemies.splice(i, 1);
+                    continue;
+                }
             }
         }
 
@@ -230,12 +247,27 @@ export const updateGame = ({
             const overlap = 0.8;
             if (d < (player.radius + e.radius) * overlap) {
                 
-                // --- SHIELD ITEM PICKUP ---
-                if (e.type === "shield_item") {
+                // --- POWER UP COLLISION ---
+                if (e.type.includes("item")) {
                     enemies.splice(i, 1);
-                    player.hasShield = true;
-                    playSound("shield");
-                    texts.push({x: player.x, y: player.y, text: "SHIELD UP!", life: 60, maxLife: 60, color: "#00BFFF"});
+                    playSound("powerup");
+                    
+                    if (e.type === "shield_item") {
+                        player.hasShield = true;
+                        playSound("shield");
+                        texts.push({x: player.x, y: player.y, text: "SHIELD UP!", life: 60, maxLife: 60, color: "#00BFFF"});
+                    } else if (e.type === "speed_item") {
+                        player.speedBoostTimer = 600; // 10 seconds
+                        texts.push({x: player.x, y: player.y, text: "SPEED BOOST!", life: 60, maxLife: 60, color: "#FF4500"});
+                    } else if (e.type === "freeze_item") {
+                        freezeTimer.current = 300; // 5 seconds
+                        playSound("freeze");
+                        texts.push({x: player.x, y: player.y, text: "TIME FREEZE!", life: 60, maxLife: 60, color: "#00FFFF"});
+                    } else if (e.type === "growth_item") {
+                        player.radius += 5;
+                        playSound("levelup");
+                        texts.push({x: player.x, y: player.y, text: "GROWTH!", life: 60, maxLife: 60, color: "#32CD32"});
+                    }
                     continue;
                 }
 
@@ -245,28 +277,17 @@ export const updateGame = ({
                     playSound("explode");
                     
                     if (player.hasShield) {
-                        // Shield blocks damage
                         player.hasShield = false;
                         texts.push({x: player.x, y: player.y, text: "BLOCKED!", life: 60, maxLife: 60, color: "#00BFFF"});
-                        player.stunTimer = 30; // Minor stun
+                        player.stunTimer = 30; 
                     } else {
-                        // Damage
                         player.radius = Math.max(15, player.radius * 0.7); 
                         player.stunTimer = 60; 
                         texts.push({x: player.x, y: player.y, text: "BOOM!", life: 60, maxLife: 60, color: "red"});
                     }
-                    
-                    // Knockback
                     const angle = Math.atan2(player.y - e.y, player.x - e.x);
                     player.vx = Math.cos(angle) * 15;
                     player.vy = Math.sin(angle) * 15;
-
-                    for(let p=0; p<15; p++) {
-                        particles.push({
-                            x: e.x, y: e.y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10,
-                            life: 1.5, color: "orange", size: 5
-                        });
-                    }
                     continue;
                 }
 
@@ -291,9 +312,6 @@ export const updateGame = ({
                          playSound("zap");
                          player.stunTimer = 90;
                          texts.push({x: player.x, y: player.y, text: "STUNNED!", life: 60, maxLife: 60, color: "yellow"});
-                         for(let p=0; p<10; p++) {
-                            particles.push({x: player.x, y: player.y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 1, color: "yellow", size: 3});
-                         }
                     }
                     
                     const isGold = e.type === "gold";
@@ -328,25 +346,14 @@ export const updateGame = ({
                             color: isGold ? "gold" : (comboCount.current > 3 ? "#76ff03" : "#fff")
                         });
                     }
-                    
-                    for(let p=0; p<5; p++) {
-                        particles.push({
-                            x: e.x, y: e.y,
-                            vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5,
-                            life: 1, color: e.color, size: 4
-                        });
-                    }
 
                 } else {
-                    // DIE (eaten by bigger fish)
+                    // DIE
                     if (!isStunned) { 
                         if (player.hasShield) {
-                            // Shield saves you
                             player.hasShield = false;
-                            playSound("explode"); // Shield pop sound
+                            playSound("explode"); 
                             texts.push({x: player.x, y: player.y, text: "SHIELD BROKEN!", life: 60, maxLife: 60, color: "#00BFFF"});
-                            
-                            // Massive knockback
                             const angle = Math.atan2(player.y - e.y, player.x - e.x);
                             player.vx = Math.cos(angle) * 20;
                             player.vy = Math.sin(angle) * 20;
@@ -374,7 +381,7 @@ export const updateGame = ({
     }
 };
 
-interface DrawParams {
+export interface DrawParams {
     canvas: HTMLCanvasElement | null;
     ctx: CanvasRenderingContext2D | null | undefined;
     gameState: string;
@@ -385,7 +392,7 @@ interface DrawParams {
     particles: Particle[];
     texts: FloatingText[];
     frenzyActive: boolean;
-    inputMode: string;
+    inputMode: "mouse" | "keyboard";
     mouse: { x: number, y: number };
 }
 
@@ -393,26 +400,52 @@ export const drawGame = ({
     canvas, ctx, gameState, level, player, enemies, bubbles, particles, texts, frenzyActive, inputMode, mouse
 }: DrawParams) => {
     if (!canvas || !ctx) return;
-    
-    const config = LEVELS[level];
-    
-    drawBackground(ctx, canvas.width, canvas.height, config.bgTop, config.bgBottom, config.bgAsset);
-    
-    bubbles.forEach(b => drawBubble(ctx, b.x, b.y, b.size, b.color));
-    
-    enemies.forEach(e => {
-        let facingRight = e.vx > 0;
-        drawFish(ctx, e, false, false, facingRight);
-    });
 
-    if (gameState !== "GAMEOVER") {
-        let facingRight = player.vx > 0;
-        if (inputMode === "mouse") facingRight = mouse.x > player.x;
-        else if (Math.abs(player.vx) > 0.1) facingRight = player.vx > 0;
+    const width = canvas.width;
+    const height = canvas.height;
+    const levelConfig = LEVELS[level];
+
+    // Clear and Background
+    ctx.clearRect(0, 0, width, height);
+    
+    // Determine background asset
+    const bgAsset = levelConfig ? levelConfig.bgAsset : "background1";
+    const bgTop = levelConfig ? levelConfig.bgTop : "#000";
+    const bgBottom = levelConfig ? levelConfig.bgBottom : "#000";
+
+    drawBackground(ctx, width, height, bgTop, bgBottom, bgAsset);
+
+    if (gameState === "PLAYING" || gameState === "PAUSED" || gameState === "GAMEOVER" || gameState === "VICTORY" || gameState === "LEVEL_COMPLETE") {
+        // Bubbles (Background layer)
+        bubbles.forEach(b => drawBubble(ctx, b.x, b.y, b.size, b.color));
+
+        // Enemies
+        enemies.forEach(e => {
+            const facingRight = e.vx > 0;
+            drawFish(ctx, e, false, false, facingRight);
+        });
+
+        // Player
+        if (gameState !== "GAMEOVER" || (gameState === "GAMEOVER" && player.radius > 0)) {
+             const facingRight = inputMode === "mouse" 
+                ? mouse.x > player.x 
+                : player.vx > 0;
+             drawFish(ctx, player, true, frenzyActive, facingRight);
+        }
+
+        // Particles
+        particles.forEach(p => drawParticle(ctx, p.x, p.y, p.size, p.color, p.life));
+
+        // Floating Texts
+        texts.forEach(t => drawFloatingText(ctx, t.x, t.y, t.text, t.color, t.life, t.maxLife));
         
-        drawFish(ctx, player, true, frenzyActive, facingRight);
+        // Cursor
+        if (inputMode === "mouse" && gameState === "PLAYING") {
+            ctx.beginPath();
+            ctx.arc(mouse.x, mouse.y, 5, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
     }
-
-    particles.forEach(p => drawParticle(ctx, p.x, p.y, p.size, p.color, p.life));
-    texts.forEach(t => drawFloatingText(ctx, t.x, t.y, t.text, t.color, t.life, t.maxLife));
 };

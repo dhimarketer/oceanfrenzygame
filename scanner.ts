@@ -1,4 +1,6 @@
 
+
+
 import { ASSETS } from "./gameConfig";
 import { updateAssetAudio } from "./audio";
 import { updateAssetImage, getMissingAssets } from "./graphics";
@@ -17,8 +19,13 @@ const KEY_ALIASES: Record<string, string[]> = {
     "mine":   ["mine", "bomb", "spike", "hazard", "trap", "explosive"],
     "jelly":  ["jelly", "jellyfish", "sting", "squid", "medusa"],
     "electric": ["electric", "eel", "shock", "lightning", "volt", "thunder"],
-    "shield_item": ["shield", "bubble", "protection", "powerup", "item_shield", "1up"],
     
+    // Items
+    "shield_item": ["shield", "bubble", "protection", "powerup_shield", "item_shield", "1up"],
+    "speed_item": ["speed", "boost", "lightning", "bolt", "fast", "powerup_speed", "item_speed"],
+    "freeze_item": ["freeze", "ice", "stopwatch", "clock", "time", "powerup_freeze", "item_freeze"],
+    "growth_item": ["growth", "grow", "big", "mushroom", "pill", "powerup_growth", "item_growth"],
+
     "background1": ["bgreef", "reef", "background1", "bg1", "level1", "bg_reef", "shallow"],
     "background2": ["bgdeep", "deep", "background2", "bg2", "level2", "bg_deep", "twilight"],
     "background3": ["bgabyss", "abyss", "background3", "bg3", "level3", "bg_abyss", "dark"],
@@ -38,6 +45,8 @@ const KEY_ALIASES: Record<string, string[]> = {
     "explode": ["explode", "boom", "bang", "sfx_explode", "bomb"],
     "shield": ["shield", "bubble", "sfx_shield", "pickup"],
     "suction": ["suction", "inhale", "sfx_suction", "breath"],
+    "powerup": ["powerup", "item", "bonus", "sfx_powerup"],
+    "freeze": ["freeze", "ice", "stop", "sfx_freeze"],
 };
 
 // Simplify a filename for comparison
@@ -132,7 +141,7 @@ export const scanUserFolder = async (
 
     const neededImageKeys = [
         "player", "enemy0", "enemy1", "enemy2", "enemy3", "enemy4", "gold", 
-        "mine", "jelly", "electric", "shield_item",
+        "mine", "jelly", "electric", "shield_item", "speed_item", "freeze_item", "growth_item",
         "background1", "background2", "background3", "background4", "background5"
     ];
 

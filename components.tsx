@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ASSETS, ASSET_LABELS, LEVELS } from "./gameConfig";
 import { getCurrentAssetUrl } from "./graphics";
 
@@ -22,7 +22,7 @@ export const AssetStatusTable = ({ missingFiles }: { missingFiles: string[] }) =
     const all = [...images, ...sounds].sort((a, b) => (a.isMissing === b.isMissing ? 0 : a.isMissing ? -1 : 1));
 
     return (
-        <div style={{ maxHeight: "200px", overflowY: "auto", background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "5px", marginBottom: "10px", border: "1px solid rgba(255,255,255,0.1)" }}>
+        <div style={{ maxHeight: "150px", overflowY: "auto", background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "5px", marginBottom: "10px", border: "1px solid rgba(255,255,255,0.1)" }}>
              <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse", color: "#ddd" }}>
                 <thead>
                     <tr style={{ textAlign: "left", borderBottom: "1px solid #555" }}>
@@ -47,72 +47,144 @@ export const AssetStatusTable = ({ missingFiles }: { missingFiles: string[] }) =
     );
 };
 
-// --- World Map ---
+// --- World Map (Pearl Style) ---
 
-export const WorldMap = ({ currentLevel, completed }: { currentLevel: number, completed: boolean }) => {
+interface WorldMapProps {
+    currentLevel: number;
+    completed: boolean;
+    onLevelSelect?: (levelIndex: number) => void;
+}
+
+export const WorldMap = ({ currentLevel, completed, onLevelSelect }: WorldMapProps) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const activeRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        // Auto-scroll to the current level on mount
+        if (activeRef.current && containerRef.current) {
+            activeRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }, []);
+
+    const renderZoneHeader = (idx: number) => {
+        if (idx === 0) return "ZONE 1: SHALLOW REEF";
+        if (idx === 4) return "ZONE 2: TWILIGHT";
+        if (idx === 8) return "ZONE 3: ABYSS";
+        if (idx === 12) return "ZONE 4: SHIPWRECK";
+        if (idx === 16) return "ZONE 5: THE TRENCH";
+        return null;
+    };
+
     return (
         <div style={{ 
-            display: "flex", flexDirection: "column", alignItems: "center", gap: "20px",
-            padding: "20px", background: "rgba(0,0,0,0.5)", borderRadius: "15px",
-            border: "2px solid rgba(255,255,255,0.1)", backdropFilter: "blur(10px)"
+            display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
+            padding: "15px", background: "rgba(0, 20, 40, 0.8)", borderRadius: "20px",
+            border: "4px double rgba(78, 205, 196, 0.5)", backdropFilter: "blur(10px)",
+            width: "100%", maxWidth: "500px", height: "60vh", maxHeight: "600px", overflow: "hidden",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.5)"
         }}>
-            <h3 style={{ color: "white", margin: 0, textTransform: "uppercase", letterSpacing: "2px", borderBottom: "1px solid #555", paddingBottom: "10px", width: "100%", textAlign: "center" }}>
-                Ocean Depth Chart
+            <h3 style={{ 
+                color: "#4ECDC4", margin: 0, textTransform: "uppercase", letterSpacing: "3px", 
+                borderBottom: "1px solid #444", paddingBottom: "10px", width: "100%", textAlign: "center",
+                textShadow: "0 0 10px rgba(78, 205, 196, 0.5)"
+            }}>
+                Ocean Map
             </h3>
-            <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "40px", padding: "20px" }}>
-                {/* Connecting Line */}
+            
+            <div 
+                ref={containerRef}
+                style={{ 
+                    position: "relative", display: "flex", flexDirection: "column", gap: "0px", 
+                    padding: "20px 20px", width: "100%", overflowY: "auto", scrollbarWidth: "thin",
+                    alignItems: "center"
+                }}
+            >
+                {/* String for the Pearls */}
                 <div style={{ 
-                    position: "absolute", left: "29px", top: "30px", bottom: "30px", width: "2px", 
-                    background: "linear-gradient(to bottom, #4ECDC4, #003366)", zIndex: 0 
+                    position: "absolute", left: "50%", transform: "translateX(-50%)", top: "20px", bottom: "20px", width: "2px", 
+                    background: "rgba(255,255,255,0.3)", zIndex: 0 
                 }} />
 
                 {LEVELS.map((lvl, idx) => {
-                    // Logic for display state
-                    let status = "locked"; 
-                    if (idx < currentLevel) status = "completed";
-                    else if (idx === currentLevel) status = completed ? "completed" : "current";
-                    else status = "locked";
-                    
-                    // If we just completed the current level, the "next" visual focus is the next one
-                    // But for this simple map, let's just highlight based on index
+                    const status = idx < currentLevel ? "completed" : (idx === currentLevel ? (completed ? "completed" : "current") : "locked");
                     const isNext = completed && idx === currentLevel + 1;
-                    
                     const isActive = idx === currentLevel;
+                    const canPlay = onLevelSelect && (status !== "locked" || isNext || idx === 0);
+                    const zoneTitle = renderZoneHeader(idx);
+
+                    // Pearl Styling
+                    let pearlBackground = "radial-gradient(circle at 30% 30%, #555, #222)"; // Locked (Dark Grey)
+                    if (status === "completed") {
+                        pearlBackground = "radial-gradient(circle at 30% 30%, #4ECDC4, #2A9D8F)"; // Completed (Teal)
+                    } else if (isActive || isNext) {
+                         // Current (Theme color + Shine)
+                        pearlBackground = `radial-gradient(circle at 30% 30%, #fff, ${lvl.bgTop}, ${lvl.bgBottom})`; 
+                    }
+
+                    const pearlSize = (isActive || isNext) ? "50px" : "40px";
+                    const pearlGlow = (isActive || isNext) ? "0 0 15px rgba(255,255,255,0.6), inset -2px -2px 5px rgba(0,0,0,0.3)" : "inset -2px -2px 5px rgba(0,0,0,0.5), 0 5px 10px rgba(0,0,0,0.3)";
 
                     return (
-                        <div key={idx} style={{ display: "flex", alignItems: "center", gap: "20px", zIndex: 1, opacity: status === "locked" && !isNext ? 0.5 : 1 }}>
-                            {/* Node Circle */}
-                            <div style={{ 
-                                width: "60px", height: "60px", borderRadius: "50%", 
-                                background: status === "completed" ? "#4ECDC4" : (isActive || isNext) ? lvl.bgTop : "#333",
-                                border: (isActive || isNext) ? "4px solid white" : "4px solid #555",
-                                display: "flex", justifyContent: "center", alignItems: "center",
-                                boxShadow: (isActive || isNext) ? "0 0 15px white" : "none",
-                                position: "relative",
-                                transition: "all 0.5s ease"
-                            }}>
-                                {status === "completed" && <span style={{fontSize: "24px"}}>✓</span>}
-                                {status === "locked" && !isNext && <span style={{fontSize: "24px"}}>🔒</span>}
-                                {(isActive && !completed) && (
-                                    <div style={{ position: "absolute", fontSize: "30px", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}>
-                                        🐟
-                                    </div>
-                                )}
-                            </div>
+                        <div key={idx} ref={isActive ? activeRef : null} style={{ position: "relative", zIndex: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
                             
-                            {/* Text Info */}
-                            <div style={{ color: "white" }}>
-                                <div style={{ fontWeight: "bold", fontSize: (isActive || isNext) ? "20px" : "16px", color: (isActive || isNext) ? "#fff" : "#aaa" }}>
+                            {zoneTitle && (
+                                <div style={{ 
+                                    color: "#FFD700", fontSize: "12px", fontWeight: "bold", 
+                                    margin: "20px 0 10px 0", letterSpacing: "1px", textShadow: "0 1px 2px black",
+                                    background: "rgba(0,0,0,0.5)", padding: "2px 10px", borderRadius: "10px"
+                                }}>
+                                    {zoneTitle}
+                                </div>
+                            )}
+
+                            <div 
+                                onClick={() => canPlay && onLevelSelect && onLevelSelect(idx)}
+                                style={{ 
+                                    display: "flex", alignItems: "center", gap: "15px", 
+                                    opacity: status === "locked" && !isNext ? 0.5 : 1,
+                                    padding: "8px 0",
+                                    cursor: canPlay ? "pointer" : "default",
+                                    transition: "transform 0.2s",
+                                    width: "100%",
+                                    justifyContent: "center"
+                                }}
+                                onMouseEnter={(e) => canPlay && (e.currentTarget.style.transform = "scale(1.05)")}
+                                onMouseLeave={(e) => canPlay && (e.currentTarget.style.transform = "scale(1)")}
+                            >
+                                {/* Left Side Info (Alternating layout could be cool, but sticking to centered for string effect) */}
+                                <div style={{ flex: 1, textAlign: "right", fontSize: "14px", color: (isActive||isNext) ? "#fff" : "#888", fontWeight: "bold" }}>
                                     {lvl.name}
                                 </div>
-                                <div style={{ fontSize: "12px", color: "#ccc" }}>
-                                    Target Size: {lvl.goalSize}
+
+                                {/* Pearl Node */}
+                                <div style={{ 
+                                    width: pearlSize, height: pearlSize, borderRadius: "50%", 
+                                    background: pearlBackground,
+                                    boxShadow: pearlGlow,
+                                    display: "flex", justifyContent: "center", alignItems: "center",
+                                    fontSize: "16px",
+                                    flexShrink: 0,
+                                    border: (isActive || isNext) ? "2px solid white" : "none",
+                                    color: (status === "locked" && !isNext) ? "#888" : "#fff",
+                                    fontWeight: "bold",
+                                    textShadow: "0 1px 2px rgba(0,0,0,0.5)"
+                                }}>
+                                    {status === "completed" && "✓"}
+                                    {status === "locked" && !isNext && (idx + 1)}
+                                    {(isActive && !completed) && (idx + 1)}
+                                    {isNext && "▶"}
+                                </div>
+
+                                {/* Right Side Info */}
+                                <div style={{ flex: 1, textAlign: "left", fontSize: "11px", color: "#666" }}>
+                                    Target: {lvl.goalSize}
                                 </div>
                             </div>
                         </div>
                     );
                 })}
             </div>
+             {onLevelSelect && <div style={{marginTop: "10px", fontSize: "10px", color: "#aaa", textTransform: "uppercase"}}>Scroll & Click to Play</div>}
         </div>
     );
 };
@@ -136,44 +208,52 @@ export const AssetCard: React.FC<AssetCardProps> = ({
     const isAudio = ASSETS.sounds.hasOwnProperty(assetKey);
     const currentUrl = isImage ? getCurrentAssetUrl(assetKey) : null;
     
-    // We don't render cards for keys that don't exist in ASSETS (safety check)
     if (!isImage && !isAudio) return null;
 
     return (
-        <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: "10px", padding: "15px", display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <div style={{ color: "white", fontWeight: "bold", marginBottom: "10px", textAlign: "center" }}>{label}</div>
-            <div style={{ width: "100%", height: "120px", background: "rgba(0,0,0,0.5)", borderRadius: "5px", marginBottom: "10px", display: "flex", justifyContent: "center", alignItems: "center", overflow: "hidden" }}>
+        <div style={{ 
+            background: "rgba(255,255,255,0.05)", borderRadius: "8px", padding: "10px", 
+            display: "flex", flexDirection: "column", alignItems: "center",
+            border: "1px solid rgba(255,255,255,0.05)"
+        }}>
+            <div style={{ color: "#ddd", fontWeight: "bold", fontSize: "12px", marginBottom: "8px", textAlign: "center", height: "30px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {label}
+            </div>
+            
+            <div style={{ width: "100%", height: "80px", background: "rgba(0,0,0,0.3)", borderRadius: "4px", marginBottom: "8px", display: "flex", justifyContent: "center", alignItems: "center", overflow: "hidden" }}>
                 {isImage ? (
                     currentUrl ? (
                         <img src={currentUrl} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} alt={label} />
                     ) : (
-                        <span style={{color: "#aaa", fontSize: "12px"}}>Using Default</span>
+                        <span style={{color: "#666", fontSize: "10px"}}>Default</span>
                     )
                 ) : (
-                    <span style={{color: "#4ECDC4", fontSize: "24px"}}>🎵</span>
+                    <span style={{color: "#4ECDC4", fontSize: "20px"}}>🎵</span>
                 )}
             </div>
             
-            <div style={{display: "flex", flexDirection: "column", gap: "5px", width: "100%"}}>
-                <div style={{display: "flex", gap: "5px", width: "100%"}}>
-                    <label style={{ flex: 1, cursor: "pointer", background: "#4ECDC4", color: "#000", padding: "8px", borderRadius: "5px", textAlign: "center", fontSize: "12px", fontWeight: "bold", transition: "background 0.2s" }}>
-                        {isImage ? "UPLOAD IMG" : "UPLOAD MP3"}
-                        <input 
-                            type="file" 
-                            accept={isImage ? "image/png, image/jpeg" : "audio/*"}
-                            style={{ display: "none" }} 
-                            onClick={(e) => (e.target as HTMLInputElement).value = ''} // allow re-uploading same file
-                            onChange={(e) => onUpload(assetKey, e.target.files?.[0] || null)}
-                        />
-                    </label>
-                    <button 
-                        onClick={() => onReset(assetKey)}
-                        style={{ background: "#FF6B6B", border: "none", color: "white", borderRadius: "5px", cursor: "pointer", padding: "0 10px" }}
-                        title="Reset to Default"
-                    >
-                        ✕
-                    </button>
-                </div>
+            <div style={{display: "flex", gap: "5px", width: "100%"}}>
+                <label style={{ 
+                    flex: 1, cursor: "pointer", background: "#4ECDC4", color: "#000", 
+                    padding: "6px 0", borderRadius: "4px", textAlign: "center", 
+                    fontSize: "11px", fontWeight: "bold", transition: "background 0.2s" 
+                }}>
+                    UPLOAD
+                    <input 
+                        type="file" 
+                        accept={isImage ? "image/png, image/jpeg" : "audio/*"}
+                        style={{ display: "none" }} 
+                        onClick={(e) => (e.target as HTMLInputElement).value = ''}
+                        onChange={(e) => onUpload(assetKey, e.target.files?.[0] || null)}
+                    />
+                </label>
+                <button 
+                    onClick={() => onReset(assetKey)}
+                    style={{ background: "#FF6B6B", border: "none", color: "white", borderRadius: "4px", cursor: "pointer", padding: "0 8px", fontSize: "12px" }}
+                    title="Reset to Default"
+                >
+                    ✕
+                </button>
             </div>
         </div>
     );

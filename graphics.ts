@@ -1,4 +1,6 @@
 
+
+
 import { ASSETS } from "./gameConfig";
 import { Entity } from "./types";
 
@@ -11,11 +13,13 @@ export interface RenderEntity {
     vx: number;
     vy: number;
     color: string;
-    type: "normal" | "gold" | "mine" | "jelly" | "electric" | "shield_item";
+    type: "normal" | "gold" | "mine" | "jelly" | "electric" | "shield_item" | "speed_item" | "freeze_item" | "growth_item";
     tier: number; // Used for asset lookup
     stunTimer?: number;
     oscillationOffset?: number;
     hasShield?: boolean;
+    speedBoostTimer?: number;
+    isChaser?: boolean;
 }
 
 // --- Asset Management ---
@@ -303,18 +307,31 @@ const drawJelly = (ctx: CanvasRenderingContext2D, r: number, offset: number) => 
     }
 };
 
-const drawShieldItem = (ctx: CanvasRenderingContext2D, r: number) => {
-    const img = loadedImages["shield_item"];
+const drawPowerUp = (ctx: CanvasRenderingContext2D, r: number, type: string) => {
+    let imgKey = "shield_item";
+    let color = "#00BFFF";
+    let fallbackText = "?";
+
+    if (type === "shield_item") { imgKey = "shield_item"; color = "#00BFFF"; fallbackText = "🛡️"; }
+    else if (type === "speed_item") { imgKey = "speed_item"; color = "#FF4500"; fallbackText = "⚡"; }
+    else if (type === "freeze_item") { imgKey = "freeze_item"; color = "#00FFFF"; fallbackText = "❄️"; }
+    else if (type === "growth_item") { imgKey = "growth_item"; color = "#32CD32"; fallbackText = "🍄"; }
+
+    const img = loadedImages[imgKey];
     
     // Bobbing animation
     const bob = Math.sin(performance.now() * 0.005) * 5;
     ctx.translate(0, bob);
 
+    // Glow
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = color;
+
     if (img) {
         ctx.drawImage(img, -r, -r, r*2, r*2);
     } else {
-        // Fallback Shield Orb
-        ctx.fillStyle = "rgba(0, 191, 255, 0.8)";
+        // Fallback
+        ctx.fillStyle = color;
         ctx.beginPath();
         ctx.arc(0, 0, r, 0, Math.PI*2);
         ctx.fill();
@@ -324,8 +341,10 @@ const drawShieldItem = (ctx: CanvasRenderingContext2D, r: number) => {
         ctx.fillStyle = "white";
         ctx.font = "bold 20px Arial";
         ctx.textAlign = "center";
-        ctx.fillText("SHIELD", 0, 5);
+        ctx.textBaseline = "middle";
+        ctx.fillText(fallbackText, 0, 0);
     }
+    ctx.shadowBlur = 0;
 };
 
 export const drawFish = (
@@ -350,8 +369,8 @@ export const drawFish = (
     } else if (fish.type === "mine") {
         // Mines spin slowly
         ctx.rotate(performance.now() * 0.001);
-    } else if (fish.type === "shield_item") {
-        // Shield items float upright
+    } else if (fish.type.includes("item")) {
+        // Items float upright
     } else {
          // Fish Orientation
         const tiltAmount = Math.max(-0.45, Math.min(0.45, fish.vy * 0.08));
@@ -368,11 +387,13 @@ export const drawFish = (
         ctx.shadowBlur = 20; ctx.shadowColor = "gold";
     } else if (fish.type === "electric") {
         ctx.shadowBlur = 15; ctx.shadowColor = "#FFFF00";
-    } else if (fish.type === "shield_item") {
-        ctx.shadowBlur = 15; ctx.shadowColor = "#00BFFF";
+    } else if (fish.isChaser) {
+        ctx.shadowBlur = 10; ctx.shadowColor = "red";
     } else if (isPlayer) {
         if (isFrenzy) {
             ctx.shadowBlur = 20; ctx.shadowColor = "#FFD700";
+        } else if ((fish.speedBoostTimer || 0) > 0) {
+            ctx.shadowBlur = 20; ctx.shadowColor = "#FF4500";
         } else {
             ctx.shadowBlur = 10; ctx.shadowColor = "rgba(0,0,0,0.5)";
         }
@@ -383,8 +404,8 @@ export const drawFish = (
         drawMine(ctx, fish.radius);
     } else if (fish.type === "jelly") {
         drawJelly(ctx, fish.radius, fish.oscillationOffset || 0);
-    } else if (fish.type === "shield_item") {
-        drawShieldItem(ctx, fish.radius);
+    } else if (fish.type.includes("item")) {
+        drawPowerUp(ctx, fish.radius, fish.type);
     } else {
         // Standard Fish Rendering (Normal, Gold, Electric, Player)
         let assetKey = "";
@@ -399,6 +420,13 @@ export const drawFish = (
             const aspect = img.width / img.height;
             const drawHeight = fish.radius * 2 * visualScale;
             const drawWidth = drawHeight * aspect;
+            
+            // Chaser Filter (Tint Red)
+            if (fish.isChaser && !isPlayer) {
+                // In a complex engine we'd use composite operations, but canvas simple drawImage is faster
+                // We'll just rely on the red shadow glow added above
+            }
+            
             ctx.drawImage(img, -drawWidth/2, -drawHeight/2, drawWidth, drawHeight);
         } else {
             // Procedural Fallback
@@ -445,6 +473,17 @@ export const drawFish = (
         ctx.arc(0, 0, fish.radius * 1.5, 0, Math.PI*2);
         ctx.fill();
         ctx.stroke();
+    }
+    
+    // Player Speed Boost Overlay
+    if (isPlayer && (fish.speedBoostTimer || 0) > 0) {
+        ctx.strokeStyle = "#FF4500";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.arc(0, 0, fish.radius * 1.3, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.setLineDash([]);
     }
 
     ctx.restore();

@@ -7,24 +7,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Dependencies
 node_modules
-.pnp
-.pnp.js
-
-# Build outputs
 dist
 dist-ssr
-build
 *.local
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.*.local
 
 # Editor directories and files
 .vscode/*
@@ -36,30 +22,3 @@ build
 *.njsproj
 *.sln
 *.sw?
-*.swp
-*.swo
-*~
-
-# OS files
-Thumbs.db
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Desktop.ini
-
-# Docker
-docker-compose.override.yml
-
-# Testing
-coverage
-.nyc_output
-*.lcov
-
-# Temporary files
-*.tmp
-*.temp
-.cache
-.parcel-cache
