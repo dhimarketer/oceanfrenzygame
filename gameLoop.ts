@@ -23,10 +23,12 @@ interface UpdateParams {
         comboCount: React.MutableRefObject<number>;
         lastEatTime: React.MutableRefObject<number>;
         score: React.MutableRefObject<number>;
+        localScore: React.MutableRefObject<number>;
         freezeTimer: React.MutableRefObject<number>; 
     };
     level: number;
     setScore: (s: number) => void;
+    setLocalScore: (s: number) => void;
     setCombo: (c: number) => void;
     setFrenzyActive: (b: boolean) => void;
     setGameState: (s: any) => void;
@@ -35,13 +37,13 @@ interface UpdateParams {
 
 export const updateGame = ({
     canvas, player, enemies, bubbles, particles, texts, input, refs, level,
-    setScore, setCombo, setFrenzyActive, setGameState, setGrowthProgress
+    setScore, setLocalScore, setCombo, setFrenzyActive, setGameState, setGrowthProgress
 }: UpdateParams) => {
     const width = canvas.width;
     const height = canvas.height;
     const levelConfig = LEVELS[level];
     const now = performance.now();
-    const { dashCooldown, frenzyMeter, comboCount, lastEatTime, score, freezeTimer } = refs;
+    const { dashCooldown, frenzyMeter, comboCount, lastEatTime, score, localScore, freezeTimer } = refs;
 
     // -- Cooldowns --
     if (dashCooldown.current > 0) dashCooldown.current--;
@@ -162,9 +164,10 @@ export const updateGame = ({
     player.y = Math.max(player.radius, Math.min(height - player.radius, player.y));
 
     // -- Level Progress --
-    const prevGoal = level === 0 ? 15 : LEVELS[level-1].goalSize;
+    // Player always starts at radius 15 at the beginning of each level
+    const startRadius = 15;
     const currentGoal = levelConfig.goalSize;
-    const progress = Math.min(1, Math.max(0, (player.radius - prevGoal) / (currentGoal - prevGoal)));
+    const progress = Math.min(1, Math.max(0, (player.radius - startRadius) / (currentGoal - startRadius)));
     setGrowthProgress(progress);
 
     if (player.radius >= levelConfig.goalSize) {
@@ -331,7 +334,10 @@ export const updateGame = ({
                     const gm = isGold ? SCORING.goldMultiplier : 1;
                     
                     const pts = Math.floor(Math.floor(e.radius) * SCORING.basePoints * 0.1 * cm * fm * gm);
+                    // Add to both local score (level-specific) and overall score
+                    localScore.current += pts;
                     score.current += pts;
+                    setLocalScore(localScore.current);
                     setScore(score.current);
 
                     const grow = Math.max(0.2, e.radius * 0.05) * (isGold ? 2 : 1);

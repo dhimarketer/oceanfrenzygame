@@ -18,7 +18,8 @@ const App = () => {
   // Game Flow State
   const [gameState, setGameState] = useState<"LOADING" | "MENU" | "SETTINGS" | "PLAYING" | "PAUSED" | "LEVEL_COMPLETE" | "GAMEOVER" | "VICTORY">("LOADING");
   const [level, setLevel] = useState(0); 
-  const [score, setScore] = useState(0);
+  const [score, setScore] = useState(0); // Overall score (persists across levels)
+  const [localScore, setLocalScore] = useState(0); // Level-specific score (resets each level)
   const [highScore, setHighScore] = useState(() => {
     // Load high score from localStorage on mount
     try {
@@ -33,10 +34,7 @@ const App = () => {
   const [combo, setCombo] = useState(0);
   const [missingFiles, setMissingFiles] = useState<string[]>([]);
   // Used to force re-render when assets change
-  const [assetVersion, setAssetVersion] = useState(0);
-  
-  // Track score at level start to preserve on retry
-  const scoreAtLevelStartRef = useRef(0); 
+  const [assetVersion, setAssetVersion] = useState(0); 
 
   // Refs for Game Loop (Mutable state without re-renders)
   const playerRef = useRef<Entity>({
@@ -50,7 +48,8 @@ const App = () => {
   const textsRef = useRef<FloatingText[]>([]);
   
   const mouseRef = useRef({ x: 0, y: 0 });
-  const scoreRef = useRef(0);
+  const scoreRef = useRef(0); // Overall score ref
+  const localScoreRef = useRef(0); // Level-specific score ref
   const levelRef = useRef(0);
   const keysPressed = useRef(new Set<string>());
   const inputMode = useRef<"mouse" | "keyboard">("mouse");
@@ -70,6 +69,10 @@ const App = () => {
   useEffect(() => {
       levelRef.current = level;
   }, [level]);
+  
+  useEffect(() => {
+      localScoreRef.current = localScore;
+  }, [localScore]);
 
   // --- Init ---
   useEffect(() => {
@@ -159,28 +162,26 @@ const App = () => {
     setGameState("PLAYING");
     setLevel(startLevel);
     
+    // Always start player as small fish (radius 15) at the beginning of each level
+    playerRef.current.radius = 15;
+    
     if (startLevel === 0) {
-        // New game - reset score
+        // New game - reset both scores
         setScore(0);
+        setLocalScore(0);
         scoreRef.current = 0;
-        scoreAtLevelStartRef.current = 0;
-        playerRef.current.radius = 15;
+        localScoreRef.current = 0;
     } else {
-        const prevGoal = LEVELS[startLevel - 1].goalSize;
-        playerRef.current.radius = prevGoal;
-        
         if (preserveScore) {
-            // Retrying a level - keep current score
-            // scoreRef.current and score state already have the current value
-            scoreAtLevelStartRef.current = scoreRef.current;
+            // Retrying a level - keep overall score, reset local score
+            setLocalScore(0);
+            localScoreRef.current = 0;
+            // scoreRef.current and score state already have the current overall value
         } else {
-            // Starting next level - use starter score or current score, whichever is higher
-            const starterScore = startLevel * 1000;
-            const currentScore = scoreRef.current;
-            const newScore = Math.max(starterScore, currentScore);
-            setScore(newScore);
-            scoreRef.current = newScore;
-            scoreAtLevelStartRef.current = newScore;
+            // Starting next level - keep overall score, reset local score
+            setLocalScore(0);
+            localScoreRef.current = 0;
+            // Overall score persists from previous level
         }
     }
     
@@ -267,10 +268,12 @@ const App = () => {
                 comboCount: comboCountRef,
                 lastEatTime: lastEatTimeRef,
                 score: scoreRef,
+                localScore: localScoreRef,
                 freezeTimer: freezeTimerRef
             },
             level,
             setScore,
+            setLocalScore,
             setCombo,
             setFrenzyActive,
             setGameState,
@@ -376,7 +379,8 @@ const App = () => {
       {gameState === "PLAYING" && (
         <div style={{ position: "absolute", top: 10, left: 0, width: "100%", padding: "0 20px", display: "flex", justifyContent: "space-between", pointerEvents: "none" }}>
             <div style={{ color: "white", textShadow: "0 2px 4px black" }}>
-                <div style={{ fontSize: "24px", fontWeight: "900" }}>SCORE: {score}</div>
+                <div style={{ fontSize: "24px", fontWeight: "900" }}>TOTAL: {score}</div>
+                <div style={{ fontSize: "18px", fontWeight: "600", color: "#4ECDC4" }}>LEVEL: {localScore}</div>
                 {combo > 1 && <div style={{ color: "#76ff03", fontWeight: "bold" }}>COMBO x{combo}!</div>}
                 <div style={{fontSize: "16px", color: "#aaa"}}>Level {level + 1}</div>
             </div>
@@ -411,22 +415,51 @@ const App = () => {
             <h1 style={{ fontSize: "5rem", color: "#4ECDC4", textShadow: "0 4px 10px black", margin: 0 }}>OCEAN FRENZY</h1>
             <h2 style={{ color: "#fff", fontWeight: "300", marginBottom: "10px" }}>EVOLVE OR DIE</h2>
             {highScore > 0 && (
-                <div style={{ fontSize: "1.2rem", color: "#FFD700", marginBottom: "40px", fontWeight: "bold", textShadow: "0 2px 4px black" }}>
+                <div style={{ fontSize: "1.2rem", color: "#FFD700", marginBottom: "30px", fontWeight: "bold", textShadow: "0 2px 4px black" }}>
                     High Score: {highScore}
                 </div>
             )}
             
-            <div style={{ display: "flex", gap: "20px", alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center" }}>
+            {/* Buttons positioned below title and score, above WorldMap */}
+            <div style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "15px",
+                alignItems: "center",
+                marginBottom: "30px",
+                width: "100%",
+                maxWidth: "400px"
+            }}>
+                <button 
+                    onClick={() => startGame(0)} 
+                    style={{
+                        ...buttonStyle, 
+                        fontSize: "24px", 
+                        padding: "20px 50px",
+                        width: "100%",
+                        maxWidth: "300px"
+                    }}
+                >
+                    PLAY NOW
+                </button>
+                <button 
+                    onClick={() => setGameState("SETTINGS")} 
+                    style={{
+                        ...buttonStyle, 
+                        background: "#556270", 
+                        fontSize: "16px", 
+                        padding: "15px 30px",
+                        width: "100%",
+                        maxWidth: "300px"
+                    }}
+                >
+                    SETTINGS
+                </button>
+            </div>
+            
+            {/* WorldMap below buttons */}
+            <div style={{ width: "100%", maxWidth: "500px", display: "flex", justifyContent: "center" }}>
                 <WorldMap currentLevel={level} completed={false} onLevelSelect={startGame} />
-                
-                <div style={{display: "flex", flexDirection: "column", gap: "20px", justifyContent: "center", marginTop: "40px"}}>
-                     <button onClick={() => startGame(0)} style={{...buttonStyle, fontSize: "24px", padding: "20px 50px"}}>
-                        PLAY NOW
-                     </button>
-                     <button onClick={() => setGameState("SETTINGS")} style={{...buttonStyle, background: "#556270", fontSize: "16px", padding: "15px 30px"}}>
-                        SETTINGS
-                     </button>
-                </div>
             </div>
         </div>
       )}
@@ -463,7 +496,10 @@ const App = () => {
             <h1 style={{ fontSize: "4rem", color: "#FFE66D", textShadow: "0 4px 10px black", pointerEvents: "none" }}>
                 {gameState === "VICTORY" ? "VICTORY!" : "LEVEL COMPLETE"}
             </h1>
-            <div style={{ fontSize: "2rem", color: "white", marginBottom: "10px", pointerEvents: "none" }}>Score: {score}</div>
+            <div style={{ fontSize: "2rem", color: "white", marginBottom: "5px", pointerEvents: "none" }}>Total Score: {score}</div>
+            {gameState !== "VICTORY" && (
+                <div style={{ fontSize: "1.5rem", color: "#4ECDC4", marginBottom: "10px", pointerEvents: "none" }}>Level Score: {localScore}</div>
+            )}
             {gameState === "VICTORY" && (
                 <div style={{ fontSize: "1.5rem", color: score > highScore ? "#FFD700" : "#4ECDC4", marginBottom: "20px", fontWeight: "bold", pointerEvents: "none" }}>
                     {score > highScore ? "🎉 NEW HIGH SCORE! 🎉" : `High Score: ${highScore}`}
@@ -515,7 +551,8 @@ const App = () => {
       {gameState === "GAMEOVER" && (
         <div style={overlayStyle}>
             <h1 style={{ fontSize: "5rem", color: "#FF6B6B", textShadow: "0 4px 10px black" }}>GAME OVER</h1>
-            <div style={{ fontSize: "2rem", color: "white", marginBottom: "10px" }}>Final Score: {score}</div>
+            <div style={{ fontSize: "2rem", color: "white", marginBottom: "5px" }}>Final Total Score: {score}</div>
+            <div style={{ fontSize: "1.5rem", color: "#4ECDC4", marginBottom: "10px" }}>Level Score: {localScore}</div>
             <div style={{ fontSize: "1.5rem", color: score > highScore ? "#FFD700" : "#4ECDC4", marginBottom: "30px", fontWeight: "bold" }}>
                 {score > highScore ? "🎉 NEW HIGH SCORE! 🎉" : `High Score: ${highScore}`}
             </div>
