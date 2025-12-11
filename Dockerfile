@@ -21,6 +21,8 @@ FROM nginx:alpine
 
 # Copy built files from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy assets folder
+COPY assets /usr/share/nginx/html/assets
 
 # Copy nginx configuration (optional, for SPA routing)
 RUN echo 'server { \
